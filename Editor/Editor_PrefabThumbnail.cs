@@ -13,7 +13,7 @@ public class Editor_PrefabThumbnail : MonoBehaviour
     /// A thumbnail of this option will be placed in the folder of your selected asset
     /// </summary>
 
-    [MenuItem("Assets/Custom Tools/Generate Prefab Thumbnail")]
+    [MenuItem("Assets/Stow Studios/Tools/Generate Prefab Thumbnail")]
     public static void GetPrefabThumbnail()
     {
         Object prefab = Selection.activeObject;
@@ -54,19 +54,20 @@ public class Editor_PrefabThumbnail : MonoBehaviour
     static Texture2D TakeImg(Object prefab)
     {
         // Instantiate the prefab in a temporary isolated layer
-        GameObject instance = PrefabUtility.InstantiatePrefab(prefab) as GameObject;
-        int originalLayer = instance.layer;
+        GameObject obj = PrefabUtility.InstantiatePrefab(prefab) as GameObject;
+        int originalLayer = obj.layer;
+        CreateLayerIfNotExists("ThumbnailLayer");
         int isolatedLayer = LayerMask.NameToLayer("ThumbnailLayer");
 
         // Set layer to all parts of prefab
-        SetAllChildrenToLayer(instance, isolatedLayer);
+        SetAllChildrenToLayer(obj, isolatedLayer);
 
         // Set up RenderTexture with transparent background support
-        int width = 256;
-        int height = 256;
+        int width = 512;
+        int height = 512;
         RenderTexture renderTexture = new RenderTexture(width, height, 24, RenderTextureFormat.ARGB32);
         renderTexture.useMipMap = false;
-        renderTexture.antiAliasing = 1;
+        renderTexture.antiAliasing = 8;
 
         Camera camera = new GameObject("Thumbnail Camera").AddComponent<Camera>();
         camera.backgroundColor = Color.clear;
@@ -76,12 +77,21 @@ public class Editor_PrefabThumbnail : MonoBehaviour
         camera.cullingMask = 1 << isolatedLayer;
 
         // Position the prefab directly in front of the camera
-        instance.transform.position = Vector3.zero;
-        instance.transform.rotation = Quaternion.identity;
-        Bounds prefabBounds = instance.GetComponent<Renderer>().bounds;
+        obj.transform.SetPositionAndRotation(Vector3.zero, Quaternion.Euler(0, -90, 0));
+
+        Bounds prefabBounds = CalculatePrefabBounds(obj);
+
         Vector3 cameraPosition = prefabBounds.center - Vector3.forward * (prefabBounds.size.magnitude * 1f);
         camera.transform.position = cameraPosition;
-        camera.transform.LookAt(prefabBounds.center);
+        camera.orthographic = true;
+        camera.orthographicSize = prefabBounds.extents.magnitude * 1.1f;
+        camera.transform.position = prefabBounds.center - Vector3.forward * 10f;
+
+        // ambient lighting
+        var originAmbMode = RenderSettings.ambientMode;
+        var originAmbLight = RenderSettings.ambientLight;
+        RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Flat;
+        RenderSettings.ambientLight = Color.white * 0.7f;
 
         // Render the prefab to the RenderTexture
         camera.targetTexture = renderTexture;
@@ -94,12 +104,15 @@ public class Editor_PrefabThumbnail : MonoBehaviour
         tex.Apply();
 
         // Clean up and revert the prefab to its original layer
-        SetAllChildrenToLayer(instance, originalLayer);
+        SetAllChildrenToLayer(obj, originalLayer);
         RenderTexture.active = null;
         camera.targetTexture = null;
         DestroyImmediate(renderTexture);
         DestroyImmediate(camera.gameObject);
-        DestroyImmediate(instance);
+        DestroyImmediate(obj);
+
+        RenderSettings.ambientMode = originAmbMode;
+        RenderSettings.ambientLight = originAmbLight;
 
         return tex;
     }
@@ -115,20 +128,74 @@ public class Editor_PrefabThumbnail : MonoBehaviour
         AssetDatabase.Refresh();  // Refresh the AssetDatabase to make sure the changes are applied
     }
 
-    static void SetAllChildrenToLayer(GameObject obj, LayerMask targetLayer)
+
+    #region TOOLS
+
+    static void SetAllChildrenToLayer(GameObject obj, int targetLayer)
     {
-        obj.layer = targetLayer;
-
-        //Set all children to ui layer
-        foreach (Transform child in obj.transform)
+        foreach (Transform t in obj.GetComponentsInChildren<Transform>(true))
         {
-            child.gameObject.layer = targetLayer;
-
-            //If the child has children, go again on this object's children
-            Transform _HasChildren = child.GetComponentInChildren<Transform>();
-            if (_HasChildren != null)
-                SetAllChildrenToLayer(child.gameObject, targetLayer);
-
+            t.gameObject.layer = targetLayer;
         }
     }
+
+    static void CreateLayerIfNotExists(string layerName)
+    {
+        SerializedObject tagManager = new SerializedObject(AssetDatabase.LoadAllAssetsAtPath("ProjectSettings/TagManager.asset")[0]);
+        SerializedProperty layersProp = tagManager.FindProperty("layers");
+
+        bool layerExists = false;
+
+        for (int i = 8; i < layersProp.arraySize; i++) // Layers 0–7 are reserved
+        {
+            SerializedProperty layer = layersProp.GetArrayElementAtIndex(i);
+            if (layer != null && layer.stringValue == layerName)
+            {
+                layerExists = true;
+                break;
+            }
+        }
+
+        if (!layerExists)
+        {
+            for (int i = 8; i < layersProp.arraySize; i++)
+            {
+                SerializedProperty layer = layersProp.GetArrayElementAtIndex(i);
+                if (layer != null && string.IsNullOrEmpty(layer.stringValue))
+                {
+                    layer.stringValue = layerName;
+                    Debug.Log($"Created new layer: {layerName}");
+                    tagManager.ApplyModifiedProperties();
+                    return;
+                }
+            }
+
+            Debug.LogWarning("No available layer slots to add new layer: " + layerName);
+        }
+        else
+        {
+            Debug.Log($"Layer already exists: {layerName}");
+        }
+    }
+
+    static Bounds CalculatePrefabBounds(GameObject obj)
+    {
+        Renderer[] renderers = obj.GetComponentsInChildren<Renderer>();
+        if (renderers.Length == 0)
+        {
+            Debug.LogError("No renderers found on prefab.");
+            return default;
+        }
+
+        Bounds prefabBounds = renderers[0].bounds;
+        foreach (Renderer r in renderers)
+        {
+            prefabBounds.Encapsulate(r.bounds);
+        }
+
+        return prefabBounds;
+    }
+
+    #endregion
+
 }
