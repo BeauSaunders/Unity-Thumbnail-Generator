@@ -59,7 +59,7 @@ public class Editor_PrefabThumbnail : MonoBehaviour
         int isolatedLayer = LayerMask.NameToLayer("ThumbnailLayer");
 
         // Set layer to all parts of prefab
-        CommonFunctions.SetAllChildrenToLayer(instance, isolatedLayer);
+        SetAllChildrenToLayer(instance, isolatedLayer);
 
         // Set up RenderTexture with transparent background support
         int width = 256;
@@ -94,12 +94,12 @@ public class Editor_PrefabThumbnail : MonoBehaviour
         tex.Apply();
 
         // Clean up and revert the prefab to its original layer
-        CommonFunctions.SetAllChildrenToLayer(instance, originalLayer);
+        SetAllChildrenToLayer(instance, originalLayer);
         RenderTexture.active = null;
         camera.targetTexture = null;
-        Object.DestroyImmediate(renderTexture);
-        Object.DestroyImmediate(camera.gameObject);
-        Object.DestroyImmediate(instance);
+        DestroyImmediate(renderTexture);
+        DestroyImmediate(camera.gameObject);
+        DestroyImmediate(instance);
 
         return tex;
     }
@@ -115,4 +115,20 @@ public class Editor_PrefabThumbnail : MonoBehaviour
         AssetDatabase.Refresh();  // Refresh the AssetDatabase to make sure the changes are applied
     }
 
+    static void SetAllChildrenToLayer(GameObject obj, LayerMask targetLayer)
+    {
+        obj.layer = targetLayer;
+
+        //Set all children to ui layer
+        foreach (Transform child in obj.transform)
+        {
+            child.gameObject.layer = targetLayer;
+
+            //If the child has children, go again on this object's children
+            Transform _HasChildren = child.GetComponentInChildren<Transform>();
+            if (_HasChildren != null)
+                SetAllChildrenToLayer(child.gameObject, targetLayer);
+
+        }
+    }
 }
