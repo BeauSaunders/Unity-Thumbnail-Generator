@@ -9,6 +9,6 @@ A simple script that lets you generate a thumbnail of a prefab in the unity edit
 
 2. Right click on the prefab you want to screenshot
 
-3. Near the bottom of the pop-up menu select 'Custom Tools\Generate Prefab Thumbnail'
+3. Near the bottom of the pop-up menu select 'Stow Studios/Tools/Generate Prefab Thumbnail'
 
 4. Your generated thumbnail will be placed in the same directory as your prefab.
