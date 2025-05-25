@@ -9,7 +9,7 @@ public class Editor_PrefabThumbnail : MonoBehaviour
     /// <summary>
     /// HOW TO USE
     /// Right-click the asset you wish to photograph
-    /// Select 'Custom Tools>Generate Prefab Thumbnail'
+    /// Select 'Stow Studios>Tools>Generate Prefab Thumbnail'
     /// A thumbnail of this option will be placed in the folder of your selected asset
     /// </summary>
 
